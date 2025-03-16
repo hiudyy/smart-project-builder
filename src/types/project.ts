@@ -23,6 +23,7 @@ export interface Project {
   activeAiModel?: AIModel;
   steps?: ProjectStep[];
   currentStepIndex?: number;
+  githubConfig?: GithubConfig;
 }
 
 export interface ProjectStep {

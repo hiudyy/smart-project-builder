@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Project, FileNode, AIModel, ProjectStep } from '@/types/project';
+import { Project, FileNode, AIModel, ProjectStep, GithubConfig } from '@/types/project';
 import { toast } from '@/components/ui/use-toast';
 import { v4 as uuidv4 } from 'uuid';
 import { useAuth } from './AuthContext';
@@ -70,27 +70,6 @@ function createInitialFileStructure(projectName: string): FileNode {
     path: `/${projectName}`,
   };
 }
-
-const mockAiModelResults: AIModel[] = [
-  {
-    id: 'llama3-8b',
-    name: 'Llama 3 (8B)',
-    description: 'Meta\'s Llama 3 8B parameter model optimized for various tasks',
-    huggingFaceId: 'meta-llama/Llama-3-8B',
-  },
-  {
-    id: 'mistralai-7b',
-    name: 'Mistral AI (7B)',
-    description: 'Mistral 7B parameter model optimized for code generation',
-    huggingFaceId: 'mistralai/Mistral-7B-v0.1',
-  },
-  {
-    id: 'phi-2',
-    name: 'Phi-2',
-    description: 'Microsoft\'s 2.7B parameter model with strong reasoning capabilities',
-    huggingFaceId: 'microsoft/phi-2',
-  },
-];
 
 const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
 
@@ -263,7 +242,7 @@ Estimated completion time: 1-2 hours
     const updatedProject = {
       ...project,
       plan: projectPlan,
-      status: 'planning',
+      status: 'planning' as const,
       steps: planSteps,
       currentStepIndex: 0,
       updatedAt: new Date(),
@@ -282,10 +261,10 @@ Estimated completion time: 1-2 hours
     const updatedProject = {
       ...project,
       planApproved: true,
-      status: 'in-progress',
+      status: 'in-progress' as const,
       steps: project.steps?.map((step, index) => 
         index === 0 
-          ? { ...step, status: 'in-progress', approved: true } 
+          ? { ...step, status: 'in-progress' as const, approved: true } 
           : step
       ),
       updatedAt: new Date(),
@@ -314,7 +293,7 @@ Estimated completion time: 1-2 hours
     const updatedSteps = [...project.steps];
     updatedSteps[stepIndex] = {
       ...updatedSteps[stepIndex],
-      status: 'completed',
+      status: 'completed' as const,
       output: `Successfully completed: ${updatedSteps[stepIndex].title}`,
     };
     
@@ -323,7 +302,7 @@ Estimated completion time: 1-2 hours
     if (nextStepIndex < updatedSteps.length) {
       updatedSteps[nextStepIndex] = {
         ...updatedSteps[nextStepIndex],
-        status: 'in-progress',
+        status: 'in-progress' as const,
       };
     }
     
@@ -331,7 +310,7 @@ Estimated completion time: 1-2 hours
       ...project,
       steps: updatedSteps,
       currentStepIndex: nextStepIndex < updatedSteps.length ? nextStepIndex : stepIndex,
-      status: nextStepIndex >= updatedSteps.length ? 'completed' : 'in-progress',
+      status: nextStepIndex >= updatedSteps.length ? 'completed' as const : 'in-progress' as const,
       updatedAt: new Date(),
     };
     
@@ -725,18 +704,58 @@ Estimated completion time: 1-2 hours
     });
   };
 
+  // Real API call to Hugging Face
   const searchAiModels = async (query: string): Promise<AIModel[]> => {
-    // Simulate API search
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    if (!query.trim()) {
-      return mockAiModelResults;
+    try {
+      const url = query 
+        ? `https://huggingface.co/api/models?search=${encodeURIComponent(query)}&limit=12`
+        : 'https://huggingface.co/api/models?sort=downloads&direction=-1&limit=12';
+      
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch models: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      return data.map((model: any) => ({
+        id: model.id,
+        name: model.modelId,
+        description: model.description || `${model.modelId} - ${model.pipeline_tag || 'AI model'}`,
+        huggingFaceId: model.id,
+        size: model.downloads ? `${model.downloads.toLocaleString()} downloads` : undefined,
+      }));
+    } catch (error) {
+      console.error("Error searching models:", error);
+      toast({
+        title: "Error fetching models",
+        description: "Failed to connect to Hugging Face API. Using cached results instead.",
+        variant: "destructive",
+      });
+      
+      // Return some fallback models if the API call fails
+      return [
+        {
+          id: 'llama3-8b',
+          name: 'Llama 3 (8B)',
+          description: 'Meta\'s Llama 3 8B parameter model optimized for various tasks',
+          huggingFaceId: 'meta-llama/Llama-3-8B',
+        },
+        {
+          id: 'mistralai-7b',
+          name: 'Mistral AI (7B)',
+          description: 'Mistral 7B parameter model optimized for code generation',
+          huggingFaceId: 'mistralai/Mistral-7B-v0.1',
+        },
+        {
+          id: 'phi-2',
+          name: 'Phi-2',
+          description: 'Microsoft\'s 2.7B parameter model with strong reasoning capabilities',
+          huggingFaceId: 'microsoft/phi-2',
+        },
+      ];
     }
-    
-    return mockAiModelResults.filter(model => 
-      model.name.toLowerCase().includes(query.toLowerCase()) || 
-      model.description.toLowerCase().includes(query.toLowerCase())
-    );
   };
 
   return (

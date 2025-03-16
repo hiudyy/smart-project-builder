@@ -24,7 +24,7 @@ const AiModels = () => {
             <h1 className="text-3xl font-bold">AI Models</h1>
           </div>
           <p className="text-muted-foreground">
-            Browse and download AI models from Hugging Face
+            Browse and download AI models directly from Hugging Face
           </p>
         </div>
       </div>
